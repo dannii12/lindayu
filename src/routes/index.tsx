@@ -360,25 +360,25 @@ function RoseVine({ progress, peachTops }: { progress: number; peachTops: number
           opacity: 0.9,
         }}
       />
-      {/* Longevity peaches bloom at milestone midpoints as the vine reveals */}
+      {/* Botanical peaches bloom at milestone midpoints as the vine reveals */}
       {peachTops.map((topPct, i) => {
         const side = PEACH_SIDES[i % PEACH_SIDES.length];
         const visible = revealPct >= topPct - 2;
         return (
           <img
             key={i}
-            src={longevityPeach}
-            alt="longevity peach"
+            src={peachBotanical}
+            alt="peach blossom"
             loading="lazy"
             style={{
               position: "absolute",
               top: `${topPct}%`,
-              left: side > 0 ? "78%" : "22%",
-              width: "clamp(2.4rem, 12vw, 4.8rem)",
-              opacity: visible ? 1 : 0,
-              transform: `translate(-50%, -50%) rotate(${side * 10}deg) scale(${visible ? 1 : 0.3})`,
+              left: side > 0 ? "80%" : "20%",
+              width: "clamp(3rem, 14vw, 6rem)",
+              opacity: visible ? 0.88 : 0,
+              transform: `translate(-50%, -50%) rotate(${side * 12}deg) scale(${visible ? 1 : 0.3})${side < 0 ? " scaleX(-1)" : ""}`,
               transition: "opacity 1200ms cubic-bezier(0.16, 1, 0.3, 1), transform 1200ms cubic-bezier(0.16, 1, 0.3, 1)",
-              filter: "drop-shadow(0 8px 14px rgba(160,60,40,0.22))",
+              filter: "drop-shadow(0 8px 16px rgba(160,60,40,0.20))",
             }}
           />
         );
