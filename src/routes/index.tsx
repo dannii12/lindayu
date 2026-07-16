@@ -1,4 +1,4 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getSiteConfig, publishSiteConfig } from "@/lib/site-config.functions";
@@ -334,18 +334,13 @@ function useReveal() {
 }
 
 /* ── Rose vine ─────────────────────────────────────────── */
-const VINE_NODES = [
-  { t: 0.12, kind: "leaf",  side: -1 },
-  { t: 0.30, kind: "peach", side:  1 },
-  { t: 0.54, kind: "peach", side:  1 },
-  { t: 0.68, kind: "leaf",  side: -1 },
-  { t: 0.82, kind: "peach", side:  1 },
-] as const;
+// Peach decoration positions: side alternates, tied to milestone midpoints dynamically
+const PEACH_SIDES = [1, -1, 1] as const; // right, left, right for 3 peaches across 8 milestones
 
-function RoseVine({ progress }: { progress: number }) {
+function RoseVine({ progress, peachTops }: { progress: number; peachTops: number[] }) {
   // Reveal the painted vine top-to-bottom based on scroll progress.
   const revealPct = Math.max(0, Math.min(1, progress)) * 100;
-  const mask = `linear-gradient(to bottom, #000 0%, #000 ${revealPct}%, transparent ${revealPct + 4}%, transparent 100%)`;
+  const mask = `linear-gradient(to bottom, #000 0%, #000 ${revealPct}%, transparent ${Math.min(revealPct + 6, 100)}%, transparent 100%)`;
   return (
     <div
       className="absolute left-5 sm:left-6 md:left-1/2 top-0 h-full w-16 sm:w-20 md:w-32 -translate-x-1/2 pointer-events-none"
@@ -361,28 +356,29 @@ function RoseVine({ progress }: { progress: number }) {
           backgroundSize: "100% auto",
           WebkitMaskImage: mask,
           maskImage: mask,
-          transition: "-webkit-mask-image 500ms cubic-bezier(0.16, 1, 0.3, 1), mask-image 500ms cubic-bezier(0.16, 1, 0.3, 1)",
+          transition: "-webkit-mask-image 1800ms cubic-bezier(0.25, 1, 0.5, 1), mask-image 1800ms cubic-bezier(0.25, 1, 0.5, 1)",
           opacity: 0.9,
         }}
       />
-      {/* Peaches grow along the vine as it reveals */}
-      {VINE_NODES.filter((n) => n.kind === "peach").map((n, i) => {
-        const visible = progress > n.t;
+      {/* Longevity peaches bloom at milestone midpoints as the vine reveals */}
+      {peachTops.map((topPct, i) => {
+        const side = PEACH_SIDES[i % PEACH_SIDES.length];
+        const visible = revealPct >= topPct - 2;
         return (
           <img
             key={i}
             src={longevityPeach}
-            alt=""
+            alt="longevity peach"
             loading="lazy"
-            className="absolute -translate-x-1/2 -translate-y-1/2"
             style={{
-              top: `${n.t * 100}%`,
-              left: n.side > 0 ? "82%" : "18%",
-              width: "clamp(2.2rem, 11vw, 4.25rem)",
+              position: "absolute",
+              top: `${topPct}%`,
+              left: side > 0 ? "78%" : "22%",
+              width: "clamp(2.4rem, 12vw, 4.8rem)",
               opacity: visible ? 1 : 0,
-              transform: `translate(-50%, -50%) rotate(${n.side * 8}deg) scale(${visible ? 1 : 0.4})`,
-              transition: "opacity 900ms ease, transform 900ms cubic-bezier(0.16, 1, 0.3, 1)",
-              filter: "drop-shadow(0 6px 10px rgba(90,50,120,0.18))",
+              transform: `translate(-50%, -50%) rotate(${side * 10}deg) scale(${visible ? 1 : 0.3})`,
+              transition: "opacity 1200ms cubic-bezier(0.16, 1, 0.3, 1), transform 1200ms cubic-bezier(0.16, 1, 0.3, 1)",
+              filter: "drop-shadow(0 8px 14px rgba(160,60,40,0.22))",
             }}
           />
         );
@@ -400,6 +396,7 @@ function Invitation() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [vineProgress, setVineProgress] = useState(0);
+  const [peachTops, setPeachTops] = useState<number[]>([]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -475,29 +472,58 @@ function Invitation() {
   }, [design.fonts.serif, design.fonts.sans, design.fonts.hant]);
 
   useEffect(() => {
+    const computePeachTops = () => {
+      const el = timelineRef.current;
+      if (!el) return;
+      const containerHeight = el.offsetHeight;
+      if (containerHeight === 0) return;
+      const items = el.querySelectorAll<HTMLElement>("ol > li");
+      if (items.length === 0) return;
+      // Place peaches at every 3rd milestone (indices 1, 4, 7 → i.e., 2nd, 5th, 8th)
+      const peachIndices = [1, 4, 7].filter((idx) => idx < items.length);
+      // Use offsetTop which is layout-stable (not scroll-dependent)
+      const tops = peachIndices.map((idx) => {
+        const item = items[idx];
+        // offsetTop is relative to the offsetParent; walk up to el if needed
+        let offsetTop = item.offsetTop + item.offsetHeight * 0.35;
+        let cur: HTMLElement | null = item.offsetParent as HTMLElement | null;
+        while (cur && cur !== el) {
+          offsetTop += cur.offsetTop;
+          cur = cur.offsetParent as HTMLElement | null;
+        }
+        return Math.max(2, Math.min(98, (offsetTop / containerHeight) * 100));
+      });
+      setPeachTops(tops);
+    };
+
     const onScroll = () => {
       const el = timelineRef.current;
       if (!el) return;
-      const items = el.querySelectorAll<HTMLElement>("ol > li");
-      if (!items.length) return;
+      const containerRect = el.getBoundingClientRect();
+      const containerHeight = el.offsetHeight;
+      if (containerHeight === 0) return;
+
+      // Progress = how far the vine container has been scrolled through
+      // 0 when container top enters viewport bottom, 1 when container bottom exits viewport top
       const vh = window.innerHeight;
-      const anchor = vh * 0.65; // item is "reached" when its top passes 65% of viewport
-      let progress = 0;
-      items.forEach((item) => {
-        const r = item.getBoundingClientRect();
-        // per-item local progress: 0 when item top is at viewport bottom, 1 when it's above the anchor
-        const span = r.height * 0.9;
-        const local = (anchor - r.top) / span;
-        progress += Math.max(0, Math.min(1, local)) / items.length;
-      });
-      setVineProgress(Math.max(0, Math.min(1, progress)));
+      // Slow reveal: starts when top of container is 80% down the viewport, completes at bottom
+      const scrolled = vh * 0.9 - containerRect.top;
+      const total = containerHeight + vh * 0.9;
+      const rawProgress = scrolled / total;
+      setVineProgress(Math.max(0, Math.min(1, rawProgress)));
     };
-    onScroll();
+
+    const onLayout = () => {
+      computePeachTops();
+      onScroll();
+    };
+
+    onLayout();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onLayout);
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onLayout);
     };
   }, [milestones.length]);
 
@@ -710,27 +736,43 @@ function Invitation() {
       {/* ── TIMELINE ─────────────────────────────────────── */}
       <section className="relative px-5 sm:px-6 py-16 sm:py-24">
         <div ref={timelineRef} className="max-w-5xl mx-auto relative">
-          <RoseVine progress={vineProgress} />
+          <RoseVine progress={vineProgress} peachTops={peachTops} />
           <ol className="space-y-20 sm:space-y-24 md:space-y-40 relative">
             {milestones.map((m, i) => {
               const left = i % 2 === 0;
               return (
                 <li key={i}
-                  className="relative grid grid-cols-[2.5rem_minmax(0,1fr)] sm:grid-cols-[3rem_minmax(0,1fr)] md:grid-cols-2 gap-5 sm:gap-6 md:gap-16 items-center reveal"
-                  data-reveal>
-                  <div className="absolute left-5 sm:left-6 md:left-1/2 -translate-x-1/2 top-3 md:top-1/2 md:-translate-y-1/2 w-8 sm:w-9 md:w-10 z-10 pointer-events-none" aria-hidden>
-                    <img src={longevityPeach} alt="" className="w-full h-auto drop-shadow-[0_4px_6px_rgba(90,50,120,0.2)]" loading="lazy" />
+                  className="relative grid grid-cols-[2.5rem_minmax(0,1fr)] sm:grid-cols-[3rem_minmax(0,1fr)] md:grid-cols-2 gap-5 sm:gap-6 md:gap-16 items-center"
+                >
+                  {/* Longevity peach node on the vine line — reveals with the text */}
+                  <div className="absolute left-5 sm:left-6 md:left-1/2 -translate-x-1/2 top-3 md:top-1/2 md:-translate-y-1/2 w-8 sm:w-9 md:w-10 z-10 pointer-events-none reveal" data-reveal aria-hidden>
+                    <img src={longevityPeach} alt="" className="w-full h-auto drop-shadow-[0_4px_6px_rgba(160,60,40,0.25)]" loading="lazy" />
                   </div>
-                  <div className={`col-start-2 md:col-start-auto ${left ? "md:pr-24 md:text-right md:order-1" : "md:pl-24 md:order-2"}`}>
+                  {/* Text column */}
+                  <div
+                    className={`col-start-2 md:col-start-auto reveal ${left ? "md:pr-24 md:text-right md:order-1" : "md:pl-24 md:order-2"}`}
+                    data-reveal
+                    style={{ transitionDelay: "80ms" }}
+                  >
                     <span className="eyebrow">{m.tag}</span>
                     <p className="mt-3 font-serif italic text-5xl sm:text-6xl md:text-7xl text-lilac-deep leading-none">{m.year}</p>
                     <h3 className="mt-5 font-serif text-[1.65rem] md:text-3xl text-ink leading-snug">{m.title}</h3>
                     <p className="mt-4 text-ink-soft leading-relaxed max-w-md md:max-w-none md:inline-block">{m.caption}</p>
-                    <div className="mt-8 md:hidden">
+                    {/* Mobile photo */}
+                    <div
+                      className="mt-8 md:hidden reveal"
+                      data-reveal
+                      style={{ transitionDelay: "160ms" }}
+                    >
                       <PhotoFrame year={m.year} tilt={left ? -1.5 : 1.5} photo={m.photo} />
                     </div>
                   </div>
-                  <div className={`hidden md:block ${left ? "md:pl-24 md:order-2" : "md:pr-24 md:order-1"}`}>
+                  {/* Desktop photo */}
+                  <div
+                    className={`hidden md:block reveal ${left ? "md:pl-24 md:order-2" : "md:pr-24 md:order-1"}`}
+                    data-reveal
+                    style={{ transitionDelay: "160ms" }}
+                  >
                     <PhotoFrame year={m.year} tilt={left ? -2.5 : 2.5} photo={m.photo} />
                   </div>
                 </li>
