@@ -746,7 +746,7 @@ function Invitation() {
                 >
                   {/* Longevity peach node on the vine line — reveals with the text */}
                   <div className="absolute left-5 sm:left-6 md:left-1/2 -translate-x-1/2 top-3 md:top-1/2 md:-translate-y-1/2 w-8 sm:w-9 md:w-10 z-10 pointer-events-none reveal" data-reveal aria-hidden>
-                    <img src={longevityPeach} alt="" className="w-full h-auto drop-shadow-[0_4px_6px_rgba(160,60,40,0.25)]" loading="lazy" />
+                    <img src={peachBotanical} alt="" className="w-full h-auto drop-shadow-[0_4px_6px_rgba(160,60,40,0.25)]" loading="lazy" />
                   </div>
                   {/* Text column */}
                   <div
